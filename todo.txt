@@ -13,6 +13,8 @@
 
 - option to skip DCPs
 
+- exit if 0 folders to process (when all skipped)
+
 
 Done:?
 - must have argument.

@@ -102,7 +102,6 @@ start_time=$(date "+%F_%T")
 # go to and save base directory
 #? use $(realpath "$PWD") instead of $PWD ?
 start_dir="$PWD"
-basedir="$PWD"
 cd "$dir"
 
 # Find all folders to process
@@ -116,13 +115,13 @@ declare -a skipped=()
 while IFS= read -r; do subdirs+=("$REPLY"); done < <(find . -type d -not -name ".*" | LC_ALL=C sort)
 
 # 2. count files and if there are any, add dir to wanted
-for d in "$basedir" "${subdirs[@]}"; do  # include "." (= "$dir" itself), not only it's subdirs
+for d in "$dir" "${subdirs[@]}"; do  # include "$dir" itself, not only it's subdirs
 
 	# todo: skip if has .md5?
-	found_md5="$(find "$d" -maxdepth 1 -name '*.md5' -print -quit)"
+	found_md5="$(find "$d" -maxdepth 1 -name "$md5_filename.md5" -print -quit)"
 	if [ -n "$found_md5" ]; then
 		warn "Skipping '$d'. It already has '$found_md5'"
-		skipped+=("$d ($found_md5)")
+		skipped+=("$d")
 		continue
 	fi
 
@@ -137,14 +136,19 @@ for d in "$basedir" "${subdirs[@]}"; do  # include "." (= "$dir" itself), not on
 done
 
 echo "Found ${#wanted[@]} folders to process:"
-printf "  * %s\n", "${wanted[@]}"
+printf "  * %s\n" "${wanted[@]}"
+
+if [ "${#skipped[@]}" -gt 0 ]; then
+	echo "Skipping ${#skipped[@]} folder(s) which already have $md5_filename.md5 :"
+	printf "  * %s\n" "${skipped[@]}"
+fi
 
 total_size=$( du -sm . 2>/dev/null | { read s x; echo "$s"; } )
 echo "total size = $total_size MiB."
 
 
 # Do you want to start?
-confirm "Start processing $total_size MiB." || exit 0;
+confirm "Start processing $total_size MiB." || { cd "$start_dir"; exit 0; }
 
 
 for d in "${wanted[@]}"; do
@@ -154,7 +158,9 @@ for d in "${wanted[@]}"; do
         continue
     fi
 
-    echo "Processing $d"
+    echo "== Processing $d"
+	(( debug )) && echo "DEBUG: PWD=$PWD, cd to $d"
+
     cd "$d"
     find . -maxdepth 1 -type f -not -name "$md5_filename.md5" -not -name '.DS_Store' -not -name "._*" \
     | LC_ALL=C sort \
@@ -163,9 +169,10 @@ for d in "${wanted[@]}"; do
       done
     echo
     # fixme: check exit status of md5 cmd ?!?
+	cd "$dir"
 done
 
-cd "$basedir"
+#cd "$basedir"
 
 end_time=$(date "+%F_%T")
 
