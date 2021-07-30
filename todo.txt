@@ -1,0 +1,24 @@
+
+- rename to md5dirs, since "all" is misleading"
+
+- options: better use of -d debug option, add -v verbose, add -n dry-run, ...?
+
+- if .md5 file exists, try to check if it's complete?
+
+- option for -f current-dir-name ?
+
+- test on MacOS with Bash 3
+
+- accept multiple dirs arg.
+
+- option to skip DCPs
+
+
+Done:?
+- must have argument.
+- bug with dirs.
+- cd back to start when finished
+- reject $dir = "/"
+- check dir exists
+
+

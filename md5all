@@ -2,14 +2,7 @@
 
 # Do md5 files for all subdirectories
 
-# fixme: add options like -d debug, etc?
-# fixme: prompt to confirm
-# fixme: what if .md5 file exists?
-# fixme: option for -f current-dir-name or make it default?
-# fixme: what if $dir is "/" ? and md5_filename should be current_dir?
-
-
-ver=0.1.3
+ver=0.1.4
 me=$(basename "$0")
 
 
@@ -27,10 +20,11 @@ usage() {
     Usage: $me [options] DIRECTORY
 
     Options:
-        -d          : Debug
         -f Filename : Filename for checksums (without extension. eg. "-f cs-md5". Default: $md5_filename)
-		-V          : show version and exit
+        -d          : Debug (can be repeated)
+        -V          : show version and exit
         -h          : This help
+
 EOF
 }
 
@@ -51,22 +45,35 @@ confirm() {
         read -p "$* [y/n]: " yn
         case $yn in
             [Yy]*) return 0  ;;
-            [Nn]*) echo "Aborted" ; return  1 ;;
+            [Nn]*) echo "Aborted" ; return 1 ;;
         esac
     done
 }
+
 
 #### PARSE ARGUMENTS
 
 while getopts "df:Vh" opt; do
     case $opt in
-        d) debug=1;;
+        d) (( debug+=1 ));;
         f) md5_filename=$OPTARG;;
-        V) echo "$me version $ver"; exit;;
-        h) usage;;
+        V) echo "$0 version $ver"; exit;;
+        h) usage; exit;;
     esac
 done
 shift $((OPTIND -1))
+
+
+dir=$(realpath -e "$1")
+
+if [ -z "$dir" ]; then
+	usage
+	die "Error: missing or wrong folder '$1'. Specify existing folder to process."
+fi
+
+if [ "$dir" = "/" ]; then
+	die "Refusing to do it on system root '$dir'"
+fi
 
 
 #### OTHER INIT
@@ -80,44 +87,57 @@ elif [[ "$OSTYPE" == "darwin"* ]]; then
 else
     die "Error: unknown OS '$OSTYPE'. Don't know correct md5 command."
 fi
+(( debug )) && echo "DEBUG: md5 command set to '$md5cmd'"
 
 
 #### START
 
 start_time=$(date "+%F_%T")
 
-dir="$1"
-[ -z "$dir" ] && dir="$PWD"
+(( debug )) && echo "DEBUG: dir='$dir'" >&2
 
-(( debug )) && echo "DEBUG: dir=$dir"
-
-#check dir exists etc
-[ -d "$dir" ] || die "Error: direcotry '$dir' not found."
+#check dir exists etc / no: done above w. realpath
+# [ -d "$dir" ] || die "Error: direcotry '$dir' not found."
 
 # go to and save base directory
-cd "$dir"
+#? use $(realpath "$PWD") instead of $PWD ?
+start_dir="$PWD"
 basedir="$PWD"
-# fixme: use $(realpath "$PWD") ?
-
+cd "$dir"
 
 # Find all folders to process
 
 declare -a subdirs=()
 declare -a wanted=()
+declare -a skipped=()
 
 # 1. find all non-hidden subdirectories (not if the name begins with "." like ".Trashes", ".Spotlight-V100", etc.)
-while read d; do subdirs+=("$d"); done < <(find . -type d -not -name ".*")
+#while read d; do subdirs+=("$d"); done < <(find . -type d -not -name ".*" | LC_ALL=C sort)
+while IFS= read -r; do subdirs+=("$REPLY"); done < <(find . -type d -not -name ".*" | LC_ALL=C sort)
 
 # 2. count files and if there are any, add dir to wanted
-for d in "$dir" "${subdirs[@]}"; do  # include "." (= "$dir" itself), not only it's subdirs
-  cnt_files=$(find "$d" -maxdepth 1 -type f -not -name ".DS_Store" -not -name "._*" | wc -l)
-  (( cnt_files )) && wanted+=("$d")
+for d in "$basedir" "${subdirs[@]}"; do  # include "." (= "$dir" itself), not only it's subdirs
+
+	# todo: skip if has .md5?
+	found_md5="$(find "$d" -maxdepth 1 -name '*.md5' -print -quit)"
+	if [ -n "$found_md5" ]; then
+		warn "Skipping '$d'. It already has '$found_md5'"
+		skipped+=("$d ($found_md5)")
+		continue
+	fi
+
+	cnt_files=$(find "$d" -maxdepth 1 -type f -not -name ".DS_Store" -not -name "._*" -not -name "*.md5" | wc -l)
+
+	# todo: skip DCPs?
+
+	(( cnt_files )) || continue
+	(( total_files += cnt_files ))
+
+	wanted+=("$d")
 done
 
 echo "Found ${#wanted[@]} folders to process:"
-for d in "${wanted[@]}"; do
-    echo "  * $d"
-done
+printf "  * %s\n", "${wanted[@]}"
 
 total_size=$( du -sm . 2>/dev/null | { read s x; echo "$s"; } )
 echo "total size = $total_size MiB."
@@ -152,4 +172,4 @@ end_time=$(date "+%F_%T")
 echo "Done:"
 echo "Started at  $start_time"
 echo "Finished at $end_time"
-
+cd "$start_dir"
