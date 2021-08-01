@@ -2,7 +2,7 @@
 
 # Do md5 files for all subdirectories
 
-ver=0.1.4
+ver=0.1.5
 me=$(basename "$0")
 
 
@@ -21,6 +21,7 @@ usage() {
 
     Options:
         -f Filename : Filename for checksums (without extension. eg. "-f cs-md5". Default: $md5_filename)
+        -n          : No action (dry_run). Don't actually calculate md5
         -d          : Debug (can be repeated)
         -V          : show version and exit
         -h          : This help
@@ -53,10 +54,11 @@ confirm() {
 
 #### PARSE ARGUMENTS
 
-while getopts "df:Vh" opt; do
+while getopts "df:nVh" opt; do
     case $opt in
         d) (( debug+=1 ));;
         f) md5_filename=$OPTARG;;
+        n) dry_run=1;;
         V) echo "$0 version $ver"; exit;;
         h) usage; exit;;
     esac
@@ -77,6 +79,9 @@ fi
 
 
 #### OTHER INIT
+
+# add .md5 to md5_filename if needed
+
 
 # Check OS to select md5 command
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
@@ -107,17 +112,32 @@ cd "$dir"
 # Find all folders to process
 
 declare -a subdirs=()
-declare -a wanted=()
 declare -a skipped=()
+declare -a dcpdirs=()
+declare -a wanted=()
 
 # 1. find all non-hidden subdirectories (not if the name begins with "." like ".Trashes", ".Spotlight-V100", etc.)
 #while read d; do subdirs+=("$d"); done < <(find . -type d -not -name ".*" | LC_ALL=C sort)
 while IFS= read -r; do subdirs+=("$REPLY"); done < <(find . -type d -not -name ".*" | LC_ALL=C sort)
 
-# 2. count files and if there are any, add dir to wanted
+# 2. find DCP dirs to be excluded
+while IFS= read -r; do dcpdirs+=("$REPLY"); done < <(find . -type f -regextype posix-extended -regex ".*/ASSETMAP(\.xml)?" -printf "%h\n" | LC_ALL=C sort)
+
+# 3. count files and if there are any, add dir to wanted
 for d in "$dir" "${subdirs[@]}"; do  # include "$dir" itself, not only it's subdirs
 
-	# todo: skip if has .md5?
+	# skip if it's a DCP
+	isdcp=0
+	for dcp in "${dcpdirs[@]}"; do
+		if [[ "$d" =~ ^"$dcp"* ]]; then
+			warn "Skipping DCP dir '$d'."
+			skipped+=("$d")
+			isdcp=1
+			break
+		fi
+	done;
+	(( isdcp )) && continue
+
 	found_md5="$(find "$d" -maxdepth 1 -name "$md5_filename.md5" -print -quit)"
 	if [ -n "$found_md5" ]; then
 		warn "Skipping '$d'. It already has '$found_md5'"
@@ -126,8 +146,6 @@ for d in "$dir" "${subdirs[@]}"; do  # include "$dir" itself, not only it's subd
 	fi
 
 	cnt_files=$(find "$d" -maxdepth 1 -type f -not -name ".DS_Store" -not -name "._*" -not -name "*.md5" | wc -l)
-
-	# todo: skip DCPs?
 
 	(( cnt_files )) || continue
 	(( total_files += cnt_files ))
@@ -139,22 +157,26 @@ echo "Found ${#wanted[@]} folders to process:"
 printf "  * %s\n" "${wanted[@]}"
 
 if [ "${#skipped[@]}" -gt 0 ]; then
-	echo "Skipping ${#skipped[@]} folder(s) which already have $md5_filename.md5 :"
+	echo "Skipping ${#skipped[@]} folder(s) :"
 	printf "  * %s\n" "${skipped[@]}"
 fi
 
-total_size=$( du -sm . 2>/dev/null | { read s x; echo "$s"; } )
+#total_size=$( du --total -sm "${wanted[@]}" 2>/dev/null | tail -1 | awk '{print $1}' ) # why did I put 2>/dev/null ?
+total_size=$( du --total -sm "${wanted[@]}" | tail -1 | awk '{print $1}' )
 echo "total size = $total_size MiB."
 
+if [ "${#wanted[*]}" = 0 ]; then
+	echo "Nothing to do. Aborting."
+	exit 0
+fi
 
 # Do you want to start?
 confirm "Start processing $total_size MiB." || { cd "$start_dir"; exit 0; }
 
-
 for d in "${wanted[@]}"; do
     if [ -f "$d/$md5_filename.md5" ]; then
         echo "$d/$md5_filename.md5 file exists already. skipping"
-		# fixme: add to list of skipped files
+		# ? DONE? fixme: add to list of skipped files
         continue
     fi
 
@@ -165,18 +187,21 @@ for d in "${wanted[@]}"; do
     find . -maxdepth 1 -type f -not -name "$md5_filename.md5" -not -name '.DS_Store' -not -name "._*" \
     | LC_ALL=C sort \
     | while read f; do
+		if (( dry_run )); then
+			(( debug )) && echo "DEBUG: (-n) would do: $md5cmd \"$f\" | tee -a \"$md5_filename.md5\""
+			continue
+		fi
         $md5cmd "$f" | tee -a "$md5_filename.md5"
+		# fixme: check exit status of md5 cmd ?!?
       done
     echo
-    # fixme: check exit status of md5 cmd ?!?
 	cd "$dir"
 done
 
-#cd "$basedir"
 
 end_time=$(date "+%F_%T")
 
-echo "Done:"
+echo "Done."
 echo "Started at  $start_time"
 echo "Finished at $end_time"
 cd "$start_dir"

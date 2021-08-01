@@ -1,7 +1,6 @@
 
-- rename to md5dirs, since "all" is misleading"
 
-- options: better use of -d debug option, add -v verbose, add -n dry-run, ...?
+- options: better use of -d debug option, add -v verbose, ...?
 
 - if .md5 file exists, try to check if it's complete?
 
@@ -11,9 +10,7 @@
 
 - accept multiple dirs arg.
 
-- option to skip DCPs
-
-- exit if 0 folders to process (when all skipped)
+- option to not skip DCPs?
 
 
 Done:?
@@ -22,5 +19,8 @@ Done:?
 - cd back to start when finished
 - reject $dir = "/"
 - check dir exists
-
+- rename to md5dirs, since "all" is misleading"
+- add -n dry-run
+- exit if 0 folders to process (when all skipped)
+- skip DCPs
 
