@@ -2,7 +2,7 @@
 
 # Do md5 files for all subdirectories
 
-ver=0.1.5
+ver=0.1.6
 me=$(basename "$0")
 
 
@@ -66,15 +66,9 @@ done
 shift $((OPTIND -1))
 
 
-dir=$(realpath -e "$1")
-
 if [ -z "$dir" ]; then
 	usage
 	die "Error: missing or wrong folder '$1'. Specify existing folder to process."
-fi
-
-if [ "$dir" = "/" ]; then
-	die "Refusing to do it on system root '$dir'"
 fi
 
 
@@ -101,13 +95,19 @@ start_time=$(date "+%F_%T")
 
 (( debug )) && echo "DEBUG: dir='$dir'" >&2
 
-#check dir exists etc / no: done above w. realpath
-# [ -d "$dir" ] || die "Error: direcotry '$dir' not found."
-
-# go to and save base directory
-#? use $(realpath "$PWD") instead of $PWD ?
+# go to base directory after saving where we started
 start_dir="$PWD"
 cd "$dir"
+# if we're in a symlink cd to the real path
+if [ ! "$dir" = "$(pwd -P)" ]; then
+	(( debug )) && echo "DEBUG: cd to real path '$dir'" >&2
+	cd "$(pwd -P)"
+fi
+
+if [ "$PWD" = "/" ]; then
+	die "Refusing to do it on system root '$PWD'"
+fi
+
 
 # Find all folders to process
 
@@ -125,6 +125,8 @@ while IFS= read -r; do dcpdirs+=("$REPLY"); done < <(find . -type f -regextype p
 
 # 3. count files and if there are any, add dir to wanted
 for d in "$dir" "${subdirs[@]}"; do  # include "$dir" itself, not only it's subdirs
+
+	(( debug )) && echo "DEBUG: cheking '$d'"
 
 	# skip if it's a DCP
 	isdcp=0
