@@ -2,7 +2,7 @@
 
 # Do md5 files for all subdirectories
 
-ver=0.1.6
+ver=0.1.7
 me=$(basename "$0")
 
 
@@ -66,9 +66,9 @@ done
 shift $((OPTIND -1))
 
 
-if [ -z "$dir" ]; then
+if [ -z "$1" ]; then
 	usage
-	die "Error: missing or wrong folder '$1'. Specify existing folder to process."
+	die "Error: missing folder argument. Specify folder to process."
 fi
 
 
