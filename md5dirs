@@ -2,9 +2,10 @@
 
 # Do md5 files for all subdirectories
 
-ver=0.1.8
+ver=0.1.9
 me=$(basename "$0")
 
+set -o pipefail # keep errors from pipes
 
 #### DEFAULTS
 
@@ -53,6 +54,7 @@ confirm() {
 
 
 #### PARSE ARGUMENTS
+#fixme: add verbose option
 
 while getopts "df:nVh" opt; do
     case $opt in
@@ -75,8 +77,11 @@ fi
 
 #### OTHER INIT
 
-# add .md5 to md5_filename if needed
+(( debug )) && echo "$0 version $ver"
 
+md5_filename="${md5_filename%%.md5}.md5"
+
+(( debug )) && echo "md5_filename = $md5_filename"
 
 # Check OS to select md5 command
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
@@ -141,6 +146,7 @@ fi
 (( debug )) && printf "DEBUG: dcpdirs: %s\n" "${dcpdirs[@]}"
 
 # 3. count files and if there are any, add dir to wanted, and calculate size
+echo "Counting files and sizes to process ..."
 for d in "$dir" "${subdirs[@]}"; do  # include "$dir" itself, not only it's subdirs
 
     (( debug > 1)) && echo "DEBUG: checking dir '$d'"
@@ -148,8 +154,9 @@ for d in "$dir" "${subdirs[@]}"; do  # include "$dir" itself, not only it's subd
     # skip if it's a DCP
     isdcp=0
     for dcp in "${dcpdirs[@]}"; do
+		(( debug )) && echo "DEBUG: Is '$dcp' a DCP dir?"
         if [[ "$d" =~ ^"$dcp"* ]]; then
-            warn "Skipping DCP dir '$d'."
+            echo "Skipping DCP dir '$d'."
             skipped+=("$d")
             isdcp=1
             break
@@ -157,9 +164,10 @@ for d in "$dir" "${subdirs[@]}"; do  # include "$dir" itself, not only it's subd
     done;
     (( isdcp )) && continue
 
-    found_md5="$(find "$d" -maxdepth 1 -name "$md5_filename.md5" -print -quit)"
+    found_md5="$(find "$d" -maxdepth 1 -name "$md5_filename" -print -quit)"
     if [ -n "$found_md5" ]; then
-        warn "Skipping '$d'. It already has '$found_md5'"
+		#fixme: warning not shown??
+        echo "Skipping '$d'. It already has '$found_md5'"
         skipped+=("$d")
         continue
     fi
@@ -199,28 +207,29 @@ echo "total size = $total_size Bytes ($total_size_mb MB.)"
 confirm "Start processing $total_size_mb MB." || { cd "$start_dir"; exit 0; }
 
 for d in "${wanted[@]}"; do
-    if [ -f "$dir/$d/$md5_filename.md5" ]; then
+    if [ -f "$dir/$d/$md5_filename" ]; then
         # fixme: remove this part?
-        echo "$d/$md5_filename.md5 file exists already. skipping"
+        echo "$d/$md5_filename file exists already. skipping"
         echo "This should have been seen before and is useless?"
         exit
         # ? DONE? fixme: add to list of skipped files
         continue
     fi
 
-    echo "== Processing $d"
+    echo "== Writing $dir/$d/$md5_filename"
     (( debug )) && echo "DEBUG: PWD=$PWD, cd to '$dir/$d'"
 
     cd "$dir/$d"
-    find . -maxdepth 1 -type f -not -name "$md5_filename.md5" -not -name '.DS_Store' -not -name "._*" \
+    find . -maxdepth 1 -type f -not -name "$md5_filename" -not -name '.DS_Store' -not -name "._*" \
     | LC_ALL=C sort \
     | while read f; do
         if (( dry_run )); then
-            (( debug )) && echo "DEBUG: (-n) would do: $md5cmd \"$f\" | tee -a \"$md5_filename.md5\""
+            (( debug )) && echo "DEBUG: (-n) would do: $md5cmd \"$f\" | tee -a \"$md5_filename\""
             continue
         fi
-        $md5cmd "$f" | tee -a "$md5_filename.md5"
-        # fixme: check exit status of md5 cmd ?!?
+        $md5cmd "$f" | tee -a "$md5_filename"
+        rv=$?
+        warn "ERROR $? with '$md5cmd \"$f\" | tee -a \"$md5_filename\"'"
       done
     echo
     cd "$dir"
@@ -233,3 +242,8 @@ echo "Done."
 echo "Started at  $start_time"
 echo "Finished at $end_time"
 cd "$start_dir"
+
+if (( ${#errors[@]} )); then
+	echo "WARNING: There were errors:"
+	printf "* %s\n" "${errors[@]}"
+fi
