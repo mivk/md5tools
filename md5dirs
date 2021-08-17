@@ -2,7 +2,7 @@
 
 # Do md5 files for all subdirectories
 
-ver=0.1.7
+ver=0.1.8
 me=$(basename "$0")
 
 
@@ -65,10 +65,11 @@ while getopts "df:nVh" opt; do
 done
 shift $((OPTIND -1))
 
+dir="$1"
 
-if [ -z "$1" ]; then
-	usage
-	die "Error: missing folder argument. Specify folder to process."
+if [ -z "$dir" ]; then
+    usage
+    die "Error: missing folder argument. Specify folder to process."
 fi
 
 
@@ -79,10 +80,13 @@ fi
 
 # Check OS to select md5 command
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    is_linux=1
     md5cmd="md5sum"
+    size_opts="-c %s"
 elif [[ "$OSTYPE" == "darwin"* ]]; then
-    # Mac OSX
+    is_mac=1
     md5cmd="md5 -r"
+    size_opts="-f %z"
 else
     die "Error: unknown OS '$OSTYPE'. Don't know correct md5 command."
 fi
@@ -91,6 +95,9 @@ fi
 
 #### START
 
+total_size=0
+total_files=0
+
 start_time=$(date "+%F_%T")
 
 (( debug )) && echo "DEBUG: dir='$dir'" >&2
@@ -98,14 +105,18 @@ start_time=$(date "+%F_%T")
 # go to base directory after saving where we started
 start_dir="$PWD"
 cd "$dir"
+(( debug )) && echo "DEBUG: cd to '$dir'" >&2
+
 # if we're in a symlink cd to the real path
 if [ ! "$dir" = "$(pwd -P)" ]; then
-	(( debug )) && echo "DEBUG: cd to real path '$dir'" >&2
-	cd "$(pwd -P)"
+    dir="$(pwd -P)"
+    (( debug )) && echo "DEBUG: \$dir changed to real path '$dir'" >&2
+    cd "$dir"
+    (( debug )) && echo "DEBUG: Now in '$PWD'" >&2
 fi
 
 if [ "$PWD" = "/" ]; then
-	die "Refusing to do it on system root '$PWD'"
+    die "Refusing to do it on system root '$PWD'"
 fi
 
 
@@ -119,85 +130,100 @@ declare -a wanted=()
 # 1. find all non-hidden subdirectories (not if the name begins with "." like ".Trashes", ".Spotlight-V100", etc.)
 #while read d; do subdirs+=("$d"); done < <(find . -type d -not -name ".*" | LC_ALL=C sort)
 while IFS= read -r; do subdirs+=("$REPLY"); done < <(find . -type d -not -name ".*" | LC_ALL=C sort)
+(( debug > 1 )) && printf "DEBUG: subdirs: %s\n" "${subdirs[@]}"
 
 # 2. find DCP dirs to be excluded
-while IFS= read -r; do dcpdirs+=("$REPLY"); done < <(find . -type f -regextype posix-extended -regex ".*/ASSETMAP(\.xml)?" -printf "%h\n" | LC_ALL=C sort)
+if (( is_mac )); then
+    while IFS= read -r; do dcpdirs+=("$REPLY"); done < <(find -E . -type f                           -regex ".*/ASSETMAP(\.xml)?" -execdir sh -c 'echo $PWD' \; | LC_ALL=C sort)
+elif (( is_linux )); then
+    while IFS= read -r; do dcpdirs+=("$REPLY"); done < <(find    . -type f -regextype posix-extended -regex ".*/ASSETMAP(\.xml)?" -printf "%h\n"                | LC_ALL=C sort)
+fi
+(( debug )) && printf "DEBUG: dcpdirs: %s\n" "${dcpdirs[@]}"
 
-# 3. count files and if there are any, add dir to wanted
+# 3. count files and if there are any, add dir to wanted, and calculate size
 for d in "$dir" "${subdirs[@]}"; do  # include "$dir" itself, not only it's subdirs
 
-	(( debug )) && echo "DEBUG: cheking '$d'"
+    (( debug > 1)) && echo "DEBUG: checking dir '$d'"
 
-	# skip if it's a DCP
-	isdcp=0
-	for dcp in "${dcpdirs[@]}"; do
-		if [[ "$d" =~ ^"$dcp"* ]]; then
-			warn "Skipping DCP dir '$d'."
-			skipped+=("$d")
-			isdcp=1
-			break
-		fi
-	done;
-	(( isdcp )) && continue
+    # skip if it's a DCP
+    isdcp=0
+    for dcp in "${dcpdirs[@]}"; do
+        if [[ "$d" =~ ^"$dcp"* ]]; then
+            warn "Skipping DCP dir '$d'."
+            skipped+=("$d")
+            isdcp=1
+            break
+        fi
+    done;
+    (( isdcp )) && continue
 
-	found_md5="$(find "$d" -maxdepth 1 -name "$md5_filename.md5" -print -quit)"
-	if [ -n "$found_md5" ]; then
-		warn "Skipping '$d'. It already has '$found_md5'"
-		skipped+=("$d")
-		continue
-	fi
+    found_md5="$(find "$d" -maxdepth 1 -name "$md5_filename.md5" -print -quit)"
+    if [ -n "$found_md5" ]; then
+        warn "Skipping '$d'. It already has '$found_md5'"
+        skipped+=("$d")
+        continue
+    fi
 
-	cnt_files=$(find "$d" -maxdepth 1 -type f -not -name ".DS_Store" -not -name "._*" -not -name "*.md5" | wc -l)
 
-	(( cnt_files )) || continue
-	(( total_files += cnt_files ))
+    files_here=0
+    while IFS= read -r ; do
+        (( total_files += 1 ))
+        (( files_here  += 1 ))
+        size=$(stat $size_opts "$REPLY")
+        (( total_size += size ))
+    done < <(find "$d" -maxdepth 1 -type f -not -name ".DS_Store" -not -name "._*" -not -name "*.md5")
 
-	wanted+=("$d")
+    (( files_here )) && wanted+=("$d")
+
 done
+
+total_size_mb=$(( total_size / 1000000 ))
 
 echo "Found ${#wanted[@]} folders to process:"
 printf "  * %s\n" "${wanted[@]}"
 
 if [ "${#skipped[@]}" -gt 0 ]; then
-	echo "Skipping ${#skipped[@]} folder(s) :"
-	printf "  * %s\n" "${skipped[@]}"
+    echo "Skipping ${#skipped[@]} folder(s) :"
+    printf "  * %s\n" "${skipped[@]}"
 fi
-
-#total_size=$( du --total -sm "${wanted[@]}" 2>/dev/null | tail -1 | awk '{print $1}' ) # why did I put 2>/dev/null ?
-total_size=$( du --total -sm "${wanted[@]}" | tail -1 | awk '{print $1}' )
-echo "total size = $total_size MiB."
 
 if [ "${#wanted[*]}" = 0 ]; then
-	echo "Nothing to do. Aborting."
-	exit 0
+    echo "Nothing to do. Aborting."
+    exit 0
 fi
 
+
+echo "total size = $total_size Bytes ($total_size_mb MB.)"
+
 # Do you want to start?
-confirm "Start processing $total_size MiB." || { cd "$start_dir"; exit 0; }
+confirm "Start processing $total_size_mb MB." || { cd "$start_dir"; exit 0; }
 
 for d in "${wanted[@]}"; do
-    if [ -f "$d/$md5_filename.md5" ]; then
+    if [ -f "$dir/$d/$md5_filename.md5" ]; then
+        # fixme: remove this part?
         echo "$d/$md5_filename.md5 file exists already. skipping"
-		# ? DONE? fixme: add to list of skipped files
+        echo "This should have been seen before and is useless?"
+        exit
+        # ? DONE? fixme: add to list of skipped files
         continue
     fi
 
     echo "== Processing $d"
-	(( debug )) && echo "DEBUG: PWD=$PWD, cd to $d"
+    (( debug )) && echo "DEBUG: PWD=$PWD, cd to '$dir/$d'"
 
-    cd "$d"
+    cd "$dir/$d"
     find . -maxdepth 1 -type f -not -name "$md5_filename.md5" -not -name '.DS_Store' -not -name "._*" \
     | LC_ALL=C sort \
     | while read f; do
-		if (( dry_run )); then
-			(( debug )) && echo "DEBUG: (-n) would do: $md5cmd \"$f\" | tee -a \"$md5_filename.md5\""
-			continue
-		fi
+        if (( dry_run )); then
+            (( debug )) && echo "DEBUG: (-n) would do: $md5cmd \"$f\" | tee -a \"$md5_filename.md5\""
+            continue
+        fi
         $md5cmd "$f" | tee -a "$md5_filename.md5"
-		# fixme: check exit status of md5 cmd ?!?
+        # fixme: check exit status of md5 cmd ?!?
       done
     echo
-	cd "$dir"
+    cd "$dir"
 done
 
 
