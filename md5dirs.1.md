@@ -8,8 +8,9 @@ NAME
 SYNOPSIS
 ========
 
-| **md5dirs** \[options ...] /some/directory
-| **md5dirs** \[**-h**|**-V**]
+**md5dirs** \[options ...] /some/directory
+
+**md5dirs** \[**-h**|**-V**]
 
 DESCRIPTION
 ===========
