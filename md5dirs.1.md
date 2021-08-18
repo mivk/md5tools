@@ -15,7 +15,7 @@ SYNOPSIS
 DESCRIPTION
 ===========
 
-`md5dirs` creates separate MD5 checksums files in the folder given as argument, and in any of it's subfolders. Every subfolder gets it's own checksums file which references only files in the current folder, not those in other subfolders.
+**md5dirs** creates separate MD5 checksums files in the folder given as argument, and in any of it's subfolders. Every subfolder gets it's own checksums file which references only files in the current folder, not those in other subfolders.
 
 `md5dirs` **excludes** a number of files and folders which are normally not wanted:
 
@@ -27,33 +27,28 @@ DESCRIPTION
 OPTIONS
 =======
 
--h
+**-h**
+:  Prints brief usage information.
 
-:   Prints brief usage information.
-
--f Filename
-
-: Specify the wanted filename for checksums files. The default is "checksums.md5". The ".md5" extension is added automatically if missing.
+**-f Filename**
+:  Specify the wanted filename for checksums files. The default is "checksums.md5". The ".md5" extension is added automatically if missing.
 Example for Cinémathèque Suisse: **-f cs-md5** will create files named "cs-md5.md5".
 
--n
-
+**-n**
 :  No action (dry_run). Don't actually calculate md5. Only select the files and calculate the total size, then show what would be done.
 
--d
+**-d**
+:  Debug (can be repeated)
 
-:   Debug (can be repeated)
-
--V
-
-: Show version and exit
+**-V**
+:  Show version and exit
 
 
 EXAMPLES
 =========
+
     md5dirs /my/folder
 
 Create files named "cs-md5.md5" :
 
     md5dirs -f cs-md5 /my/folder
-
