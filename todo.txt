@@ -1,4 +1,18 @@
+- why is this showing up 3 times?
+		DEBUG: dcpdirs: ./DCP/WetSand-L_FTR_F_GE-XX-DE-EN-FR_CH_51_2K_20210707_AND_IOP_OV
+		Counting files and sizes to process ...
+		DEBUG: Is './DCP/WetSand-L_FTR_F_GE-XX-DE-EN-FR_CH_51_2K_20210707_AND_IOP_OV' a DCP dir?
+		DEBUG: Is './DCP/WetSand-L_FTR_F_GE-XX-DE-EN-FR_CH_51_2K_20210707_AND_IOP_OV' a DCP dir?
+		DEBUG: Is './DCP/WetSand-L_FTR_F_GE-XX-DE-EN-FR_CH_51_2K_20210707_AND_IOP_OV' a DCP dir?
+		Skipping DCP dir './DCP/WetSand-L_FTR_F_GE-XX-DE-EN-FR_CH_51_2K_20210707_AND_IOP_OV'.
 
+- also exclude Windows dirs ($RECYCLED etc.)
+
+- add version to usage()
+
+- fill in readme: install, documentation, ...
+
+- cleanup debug outputs
 
 - options: better use of -d debug option, add -v verbose, ...?
 
@@ -6,21 +20,7 @@
 
 - option for -f current-dir-name ?
 
-- test on MacOS with Bash 3
-
 - accept multiple dirs arg.
 
 - option to not skip DCPs?
-
-
-Done:?
-- must have argument.
-- bug with dirs.
-- cd back to start when finished
-- reject $dir = "/"
-- check dir exists
-- rename to md5dirs, since "all" is misleading"
-- add -n dry-run
-- exit if 0 folders to process (when all skipped)
-- skip DCPs
 
