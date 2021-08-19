@@ -2,7 +2,7 @@
 
 # Do md5 files for all subdirectories
 
-ver=0.1.9
+ver=0.1.10
 me=$(basename "$0")
 
 set -o pipefail # keep errors from pipes
@@ -154,7 +154,7 @@ for d in "$dir" "${subdirs[@]}"; do  # include "$dir" itself, not only it's subd
     # skip if it's a DCP
     isdcp=0
     for dcp in "${dcpdirs[@]}"; do
-		(( debug )) && echo "DEBUG: Is '$dcp' a DCP dir?"
+		(( debug )) && echo "DEBUG: Is '$d' in DCP dir '$dcp'?"
         if [[ "$d" =~ ^"$dcp"* ]]; then
             echo "Skipping DCP dir '$d'."
             skipped+=("$d")
@@ -200,8 +200,8 @@ if [ "${#wanted[*]}" = 0 ]; then
     exit 0
 fi
 
-
-echo "total size = $total_size Bytes ($total_size_mb MB.)"
+echo "total files : $total_files"
+echo "total size  : $total_size_mb MB. ($total_size Bytes)"
 
 # Do you want to start?
 confirm "Start processing $total_size_mb MB." || { cd "$start_dir"; exit 0; }
