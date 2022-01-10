@@ -1,10 +1,6 @@
 
 - also exclude Windows dirs ($RECYCLED etc.)
 
-- add version to usage()
-
-- fill in readme: install, documentation, ...
-
 - cleanup debug outputs
 
 - options: better use of -d debug option, add -v verbose, ...?

@@ -2,7 +2,7 @@
 
 # Do md5 files for all subdirectories
 
-ver=0.1.10
+ver=0.3
 me=$(basename "$0")
 
 set -o pipefail # keep errors from pipes
@@ -17,11 +17,16 @@ md5_filename=checksums
 
 usage() {
         cat <<EOF
+	$0 Version $ver
 
     Usage: $me [options] DIRECTORY
 
+    This script goes into the directory given as argument,
+    and into any of it's subdirectories and writes separate
+    .md5 checksums files for each directory.
+
     Options:
-        -f Filename : Filename for checksums (without extension. eg. "-f cs-md5". Default: $md5_filename)
+        -f Filename : Filename for checksums (without extension. eg. "-f cs-md5". Default: ${md5_filename%%.md5}.md5)
         -n          : No action (dry_run). Don't actually calculate md5
         -d          : Debug (can be repeated)
         -V          : show version and exit
@@ -134,14 +139,14 @@ declare -a wanted=()
 
 # 1. find all non-hidden subdirectories (not if the name begins with "." like ".Trashes", ".Spotlight-V100", etc.)
 #while read d; do subdirs+=("$d"); done < <(find . -type d -not -name ".*" | LC_ALL=C sort)
-while IFS= read -r; do subdirs+=("$REPLY"); done < <(find . -type d -not -name ".*" | LC_ALL=C sort)
+while IFS= read -r; do subdirs+=("$PWD/$REPLY"); done < <(find . -type d -not -name ".*" | LC_ALL=C sort)
 (( debug > 1 )) && printf "DEBUG: subdirs: %s\n" "${subdirs[@]}"
 
 # 2. find DCP dirs to be excluded
 if (( is_mac )); then
-    while IFS= read -r; do dcpdirs+=("$REPLY"); done < <(find -E . -type f                           -regex ".*/ASSETMAP(\.xml)?" -execdir sh -c 'echo $PWD' \; | LC_ALL=C sort)
+    while IFS= read -r; do dcpdirs+=("$PWD/$REPLY"); done < <(find -E . -type f                           -regex ".*/ASSETMAP(\.xml)?" -execdir sh -c 'echo $PWD' \; | LC_ALL=C sort)
 elif (( is_linux )); then
-    while IFS= read -r; do dcpdirs+=("$REPLY"); done < <(find    . -type f -regextype posix-extended -regex ".*/ASSETMAP(\.xml)?" -printf "%h\n"                | LC_ALL=C sort)
+    while IFS= read -r; do dcpdirs+=("$PWD/$REPLY"); done < <(find    . -type f -regextype posix-extended -regex ".*/ASSETMAP(\.xml)?" -printf "%h\n"                | LC_ALL=C sort)
 fi
 (( debug )) && printf "DEBUG: dcpdirs: %s\n" "${dcpdirs[@]}"
 
@@ -154,7 +159,7 @@ for d in "$dir" "${subdirs[@]}"; do  # include "$dir" itself, not only it's subd
     # skip if it's a DCP
     isdcp=0
     for dcp in "${dcpdirs[@]}"; do
-		(( debug )) && echo "DEBUG: Is '$d' in DCP dir '$dcp'?"
+        (( debug )) && echo "DEBUG: Is '$d' in DCP dir '$dcp'?"
         if [[ "$d" =~ ^"$dcp"* ]]; then
             echo "Skipping DCP dir '$d'."
             skipped+=("$d")
@@ -166,7 +171,7 @@ for d in "$dir" "${subdirs[@]}"; do  # include "$dir" itself, not only it's subd
 
     found_md5="$(find "$d" -maxdepth 1 -name "$md5_filename" -print -quit)"
     if [ -n "$found_md5" ]; then
-		#fixme: warning not shown??
+        #fixme: warning not shown??
         echo "Skipping '$d'. It already has '$found_md5'"
         skipped+=("$d")
         continue
@@ -207,19 +212,10 @@ echo "total size  : $total_size_mb MB. ($total_size Bytes)"
 confirm "Start processing $total_size_mb MB." || { cd "$start_dir"; exit 0; }
 
 for d in "${wanted[@]}"; do
-    if [ -f "$dir/$d/$md5_filename" ]; then
-        # fixme: remove this part?
-        echo "$d/$md5_filename file exists already. skipping"
-        echo "This should have been seen before and is useless?"
-        exit
-        # ? DONE? fixme: add to list of skipped files
-        continue
-    fi
+    echo "== Going to write $d/$md5_filename"
+    cd "$d"
+    (( debug )) && echo "DEBUG: processing $PWD"
 
-    echo "== Writing $dir/$d/$md5_filename"
-    (( debug )) && echo "DEBUG: PWD=$PWD, cd to '$dir/$d'"
-
-    cd "$dir/$d"
     find . -maxdepth 1 -type f -not -name "$md5_filename" -not -name '.DS_Store' -not -name "._*" \
     | LC_ALL=C sort \
     | while read f; do
@@ -229,8 +225,9 @@ for d in "${wanted[@]}"; do
         fi
         $md5cmd "$f" | tee -a "$md5_filename"
         rv=$?
-        warn "ERROR $? with '$md5cmd \"$f\" | tee -a \"$md5_filename\"'"
+        [ "$rv" -eq 0 ] || die "ERROR $rv with '$md5cmd \"$f\" | tee -a \"$md5_filename\"'"
       done
+    (( debug )) && echo "DEBUG: Done $d/$md5_filename"
     echo
     cd "$dir"
 done
