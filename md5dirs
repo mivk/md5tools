@@ -2,7 +2,7 @@
 
 # Do md5 files for all subdirectories
 
-ver=0.3
+ver=0.3.1
 me=$(basename "$0")
 
 set -o pipefail # keep errors from pipes
@@ -201,7 +201,7 @@ if [ "${#skipped[@]}" -gt 0 ]; then
 fi
 
 if [ "${#wanted[*]}" = 0 ]; then
-    echo "Nothing to do. Aborting."
+    echo "Nothing to do. Exiting."
     exit 0
 fi
 
@@ -216,17 +216,18 @@ for d in "${wanted[@]}"; do
     cd "$d"
     (( debug )) && echo "DEBUG: processing $PWD"
 
-    find . -maxdepth 1 -type f -not -name "$md5_filename" -not -name '.DS_Store' -not -name "._*" \
-    | LC_ALL=C sort \
-    | while read f; do
-        if (( dry_run )); then
-            (( debug )) && echo "DEBUG: (-n) would do: $md5cmd \"$f\" | tee -a \"$md5_filename\""
-            continue
-        fi
-        $md5cmd "$f" | tee -a "$md5_filename"
-        rv=$?
-        [ "$rv" -eq 0 ] || die "ERROR $rv with '$md5cmd \"$f\" | tee -a \"$md5_filename\"'"
+    find . -maxdepth 1 -type f -not -name "$md5_filename" -not -name '.DS_Store' -not -name "._*" -print0 \
+    | LC_ALL=C sort -z \
+    | while IFS= read -rd '' f; do
+            if (( dry_run )); then
+                (( debug )) && echo "DEBUG: (-n) would do: $md5cmd \"$f\" | tee -a \"$md5_filename\""
+                continue
+            fi
+            $md5cmd "$f" | tee -a "$md5_filename"
+            rv=$?
+            [ "$rv" -eq 0 ] || die "ERROR $rv with '$md5cmd \"$f\" | tee -a \"$md5_filename\"'"
       done
+
     (( debug )) && echo "DEBUG: Done $d/$md5_filename"
     echo
     cd "$dir"
