@@ -2,7 +2,7 @@
 
 # Do md5 files for all subdirectories
 
-ver=0.3.1
+ver=0.3.2
 me=$(basename "$0")
 
 set -o pipefail # keep errors from pipes
@@ -68,6 +68,7 @@ while getopts "df:nVh" opt; do
         n) dry_run=1;;
         V) echo "$0 version $ver"; exit;;
         h) usage; exit;;
+        *) usage; warn "WARNING: ignoring unknow option '$opt'";;
     esac
 done
 shift $((OPTIND -1))

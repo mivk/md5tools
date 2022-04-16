@@ -13,3 +13,7 @@
 
 - option to not skip DCPs?
 
+- add list of exclude directores in an array
+
+- update documentation
+
