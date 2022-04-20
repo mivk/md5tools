@@ -16,13 +16,18 @@ It can be installed with [Homebrew](https://brew.sh). This will install the late
 
     brew install --HEAD mivk/tap/md5tools
 
+(but it doesn't work for upgrades for now)
+
 ### On Linux (or Mac without Homebrew)
 
 There is no package yet, but it can be installed by copy/pasting these few lines:
 
     repo="mivk/md5tools"; script=md5dirs
 
+    curl -LO https://raw.githubusercontent.com/$repo/main/$script
+    # or to also see it
     curl -L https://raw.githubusercontent.com/$repo/main/$script | tee $script
+
     chmod +x $script
 
 If it was already installed, you can compare the new version to the installed version before overwriting it:
