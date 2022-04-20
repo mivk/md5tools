@@ -2,7 +2,7 @@
 
 # Do md5 files for all subdirectories
 
-ver=0.3.2
+ver=0.3.4
 me=$(basename "$0")
 
 set -o pipefail # keep errors from pipes
@@ -17,7 +17,7 @@ md5_filename=checksums
 
 usage() {
         cat <<EOF
-	$0 Version $ver
+    $0 Version $ver
 
     Usage: $me [options] DIRECTORY
 
@@ -29,8 +29,9 @@ usage() {
         -f Filename : Filename for checksums (without extension. eg. "-f cs-md5". Default: ${md5_filename%%.md5}.md5)
         -n          : No action (dry_run). Don't actually calculate md5
         -d          : Debug (can be repeated)
+        -v          : Debug (can be repeated)
         -V          : show version and exit
-        -h          : This help
+        -h, -?      : This help
 
 EOF
 }
@@ -61,13 +62,14 @@ confirm() {
 #### PARSE ARGUMENTS
 #fixme: add verbose option
 
-while getopts "df:nVh" opt; do
+while getopts "df:nvVh?" opt; do
     case $opt in
         d) (( debug+=1 ));;
         f) md5_filename=$OPTARG;;
         n) dry_run=1;;
+        v) (( verbose+=1 ));;
         V) echo "$0 version $ver"; exit;;
-        h) usage; exit;;
+        h|?) usage; exit;;
         *) usage; warn "WARNING: ignoring unknow option '$opt'";;
     esac
 done
@@ -83,11 +85,11 @@ fi
 
 #### OTHER INIT
 
-(( debug )) && echo "$0 version $ver"
+(( debug+verbose )) && echo "$0 version $ver"
 
 md5_filename="${md5_filename%%.md5}.md5"
 
-(( debug )) && echo "md5_filename = $md5_filename"
+(( debug+verbose )) && echo "md5_filename = $md5_filename"
 
 # Check OS to select md5 command
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
@@ -139,15 +141,29 @@ declare -a dcpdirs=()
 declare -a wanted=()
 
 # 1. find all non-hidden subdirectories (not if the name begins with "." like ".Trashes", ".Spotlight-V100", etc.)
-#while read d; do subdirs+=("$d"); done < <(find . -type d -not -name ".*" | LC_ALL=C sort)
-while IFS= read -r; do subdirs+=("$PWD/$REPLY"); done < <(find . -type d -not -name ".*" | LC_ALL=C sort)
+while IFS= read -r; do
+    #(( debug>1 )) && echo "subdir: '$REPLY'"
+    REPLY="${REPLY/\/\///}" # replace double "/" : some//path = some/path
+    #(( debug>1 )) && echo "subdir> '$REPLY'"
+    REPLY="${REPLY##./}"    # remove leading "./"
+    #(( debug>1 )) && echo "subdir> '$REPLY'"
+    subdirs+=("$PWD/$REPLY")
+done < <(find . -type d -not -name ".*" | LC_ALL=C sort)
+
 (( debug > 1 )) && printf "DEBUG: subdirs: %s\n" "${subdirs[@]}"
 
 # 2. find DCP dirs to be excluded
 if (( is_mac )); then
-    while IFS= read -r; do dcpdirs+=("$PWD/$REPLY"); done < <(find -E . -type f                           -regex ".*/ASSETMAP(\.xml)?" -execdir sh -c 'echo $PWD' \; | LC_ALL=C sort)
+    while IFS= read -r; do
+        REPLY="${REPLY/\/\///}" # replace double "/" : some//path = some/path
+        dcpdirs+=("$REPLY")
+    done < <(find -E . -type f                           -regex ".*/ASSETMAP(\.xml)?" -execdir sh -c 'echo $PWD' \; | LC_ALL=C sort)
 elif (( is_linux )); then
-    while IFS= read -r; do dcpdirs+=("$PWD/$REPLY"); done < <(find    . -type f -regextype posix-extended -regex ".*/ASSETMAP(\.xml)?" -printf "%h\n"                | LC_ALL=C sort)
+    while IFS= read -r; do
+        REPLY="${REPLY/\/\///}" # replace double "/" : some//path = some/path
+        REPLY="${REPLY##./}"    # remove leading "./"
+        dcpdirs+=("$PWD/$REPLY")
+    done < <(find    . -type f -regextype posix-extended -regex ".*/ASSETMAP(\.xml)?" -printf "%h\n"                | LC_ALL=C sort)
 fi
 (( debug )) && printf "DEBUG: dcpdirs: %s\n" "${dcpdirs[@]}"
 
@@ -160,12 +176,15 @@ for d in "$dir" "${subdirs[@]}"; do  # include "$dir" itself, not only it's subd
     # skip if it's a DCP
     isdcp=0
     for dcp in "${dcpdirs[@]}"; do
-        (( debug )) && echo "DEBUG: Is '$d' in DCP dir '$dcp'?"
+        (( debug )) && printf "%s" "DEBUG: Is '$d' in DCP dir '$dcp'? "
         if [[ "$d" =~ ^"$dcp"* ]]; then
+            (( debug )) && echo "yes"
             echo "Skipping DCP dir '$d'."
             skipped+=("$d")
             isdcp=1
             break
+        else
+            (( debug )) && echo "no"
         fi
     done;
     (( isdcp )) && continue
@@ -178,7 +197,6 @@ for d in "$dir" "${subdirs[@]}"; do  # include "$dir" itself, not only it's subd
         continue
     fi
 
-
     files_here=0
     while IFS= read -r ; do
         (( total_files += 1 ))
@@ -187,7 +205,11 @@ for d in "$dir" "${subdirs[@]}"; do  # include "$dir" itself, not only it's subd
         (( total_size += size ))
     done < <(find "$d" -maxdepth 1 -type f -not -name ".DS_Store" -not -name "._*" -not -name "*.md5")
 
-    (( files_here )) && wanted+=("$d")
+    if (( files_here )); then
+        wanted+=("$d")
+    else
+        skipped+=("$d")
+    fi
 
 done
 
@@ -210,7 +232,10 @@ echo "total files : $total_files"
 echo "total size  : $total_size_mb MB. ($total_size Bytes)"
 
 # Do you want to start?
-confirm "Start processing $total_size_mb MB." || { cd "$start_dir"; exit 0; }
+if ! (( dry_run )); then
+    confirm "Start processing $total_size_mb MB." \
+    || { cd "$start_dir"; exit 0; }
+fi
 
 for d in "${wanted[@]}"; do
     echo "== Going to write $d/$md5_filename"
@@ -221,7 +246,8 @@ for d in "${wanted[@]}"; do
     | LC_ALL=C sort -z \
     | while IFS= read -rd '' f; do
             if (( dry_run )); then
-                (( debug )) && echo "DEBUG: (-n) would do: $md5cmd \"$f\" | tee -a \"$md5_filename\""
+                (( debug ))             && echo "DEBUG: (-n) would do: $md5cmd \"$f\" | tee -a \"$md5_filename\""
+                (( verbose-debug > 0 )) && echo "$f"
                 continue
             fi
             $md5cmd "$f" | tee -a "$md5_filename"

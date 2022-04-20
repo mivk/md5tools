@@ -1,9 +1,8 @@
-
 - also exclude Windows dirs ($RECYCLED etc.)
 
 - cleanup debug outputs
 
-- options: better use of -d debug option, add -v verbose, ...?
+- options: better use of -d debug option, ...?
 
 - if .md5 file exists, try to check if it's complete?
 
