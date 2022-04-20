@@ -6,7 +6,7 @@ For now, it only includes **md5dirs**
 
 ## md5dirs
 
-Create .md5 checksums files in every subdirectory
+Create separate .md5 checksums files in every directory
 
 ## INSTALL
 
@@ -16,7 +16,7 @@ It can be installed with [Homebrew](https://brew.sh). This will install the late
 
     brew install --HEAD mivk/tap/md5tools
 
-### On Linux
+### On Linux (or Mac without Homebrew)
 
 There is no package yet, but it can be installed by copy/pasting these few lines:
 
