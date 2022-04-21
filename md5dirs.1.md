@@ -1,9 +1,9 @@
-﻿% md5dirs(1) August 2021
+﻿% md5dirs(1) April 2022
 
 NAME
 ====
 
-**md5dirs** - Create .md5 checksums files in every subdirectory
+**md5dirs** - Create separate .md5 checksums files in every subdirectory
 
 SYNOPSIS
 ========
@@ -20,7 +20,7 @@ DESCRIPTION
 `md5dirs` **excludes** a number of files and folders which are normally not wanted:
 
 * hidden directories (like ".Trashes", ".Spotlight-V100", etc.)
-* MacOS ".DS_Store" files and resource forks (files starting with "._") and .
+* MacOS ".DS_Store" files and resource forks (files starting with "._")
 * **DCP** directories and all it's subdirectories. These are identified by the existence of a file named "ASSETMAP" or "ASSETMAP.xml"
 * Directories which already contain a file with the wanted .md5 file name. By default, that name is "checksums.md5", unless you changed it with the **-f** option.
 
@@ -39,6 +39,9 @@ Example for Cinémathèque Suisse: **-f cs-md5** will create files named "cs-md5
 
 **-d**
 :  Debug (can be repeated)
+
+**-v**
+:  More verbose verbose output
 
 **-V**
 :  Show version and exit
