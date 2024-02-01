@@ -2,10 +2,11 @@
 
 # Do md5 files for all subdirectories
 
-ver=0.3.4
+ver=0.3.6
 me=$(basename "$0")
 
 set -o pipefail # keep errors from pipes
+
 
 #### DEFAULTS
 
@@ -27,10 +28,11 @@ usage() {
 
     Options:
         -f Filename : Filename for checksums (without extension. eg. "-f cs-md5". Default: ${md5_filename%%.md5}.md5)
-        -n          : No action (dry_run). Don't actually calculate md5
+        -n          : No action (dry_run) for quick testing. Don't actually calculate md5
         -d          : Debug (can be repeated)
-        -v          : Debug (can be repeated)
+        -v          : Verbose (can be repeated)
         -V          : show version and exit
+        -y          : Yes, do it without asking first
         -h, -?      : This help
 
 EOF
@@ -60,15 +62,15 @@ confirm() {
 
 
 #### PARSE ARGUMENTS
-#fixme: add verbose option
 
-while getopts "df:nvVh?" opt; do
+while getopts "f:ndvVyh?" opt; do
     case $opt in
-        d) (( debug+=1 ));;
         f) md5_filename=$OPTARG;;
         n) dry_run=1;;
+        d) (( debug+=1 ));;
         v) (( verbose+=1 ));;
         V) echo "$0 version $ver"; exit;;
+        y) yes=1;;
         h|?) usage; exit;;
         *) usage; warn "WARNING: ignoring unknow option '$opt'";;
     esac
@@ -80,6 +82,11 @@ dir="$1"
 if [ -z "$dir" ]; then
     usage
     die "Error: missing folder argument. Specify folder to process."
+fi
+
+if [ ! -d "$dir" ]; then
+    usage
+    die "Directory '$dir' not found"
 fi
 
 
@@ -132,6 +139,9 @@ if [ "$PWD" = "/" ]; then
     die "Refusing to do it on system root '$PWD'"
 fi
 
+if ((yes)); then
+    echo "Warning: -y yes option used. Will not ask for confirmation."
+fi
 
 # Find all folders to process
 
@@ -210,7 +220,6 @@ for d in "$dir" "${subdirs[@]}"; do  # include "$dir" itself, not only it's subd
     else
         skipped+=("$d")
     fi
-
 done
 
 total_size_mb=$(( total_size / 1000000 ))
@@ -232,7 +241,8 @@ echo "total files : $total_files"
 echo "total size  : $total_size_mb MB. ($total_size Bytes)"
 
 # Do you want to start?
-if ! (( dry_run )); then
+# if not (dry_run or yes), ask confirmation:
+if ! (( dry_run + yes )); then
     confirm "Start processing $total_size_mb MB." \
     || { cd "$start_dir"; exit 0; }
 fi

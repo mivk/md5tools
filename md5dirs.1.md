@@ -46,6 +46,8 @@ Example for Cinémathèque Suisse: **-f cs-md5** will create files named "cs-md5
 **-V**
 :  Show version and exit
 
+**-y**
+:  Yes, do it without asking first
 
 EXAMPLES
 =========
